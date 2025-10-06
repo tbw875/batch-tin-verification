@@ -16,16 +16,6 @@ VOUCHED_PRIVATE_API_KEY = os.getenv('VOUCHED_PRIVATE_API_KEY')
 TIN_ENDPOINT = 'https://verify.vouched.id/api/tin/verify'
 CALLBACK_URL = os.getenv('CALLBACK_URL')
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('tin_verification.log'),
-        logging.StreamHandler()
-    ]
-)
-
 def load_file(file_path=None):
     """Load and validate the input CSV file."""
     if file_path is None:
@@ -65,7 +55,7 @@ def run_tin_verification(row, index):
             'tin': str(row['tin']).strip(),
             'phone': str(row['phone']).strip(),
             'tinType': 'ITIN',
-            'callbackUrl': CALLBACK_URL
+            'callbackURL': CALLBACK_URL
         }
         
         headers = {
@@ -77,8 +67,14 @@ def run_tin_verification(row, index):
         
         logging.info(f"Row {index}: {response.status_code}")
         
-        if response.status_code == 200:
+        # Always try to get the response content, regardless of status code
+        try:
             response_data = response.json()
+        except:
+            # If JSON parsing fails, get the raw text
+            response_data = response.text
+        
+        if response.status_code == 200:
             return {
                 'status_code': response.status_code,
                 'success': True,
@@ -86,13 +82,13 @@ def run_tin_verification(row, index):
                 'error': None
             }
         else:
-            error_msg = f"API request failed with status {response.status_code}"
-            logging.error(f"Row {index}: {error_msg}")
+            # For non-200 status codes, include the actual response in the error field
+            logging.error(f"Row {index}: API request failed with status {response.status_code}. Response: {response_data}")
             return {
                 'status_code': response.status_code,
                 'success': False,
-                'response': None,
-                'error': error_msg
+                'response': response_data,  # Include the actual response
+                'error': response_data  # Use the actual response as the error message
             }
             
     except r.exceptions.Timeout:
@@ -105,12 +101,21 @@ def run_tin_verification(row, index):
             'error': error_msg
         }
     except r.exceptions.RequestException as e:
+        # For request exceptions, try to get response if available
         error_msg = f"Request error: {str(e)}"
+        response_content = None
+        if hasattr(e, 'response') and e.response is not None:
+            try:
+                response_content = e.response.json()
+            except:
+                response_content = e.response.text
+            error_msg = f"Request error: {str(e)}. Response: {response_content}"
+        
         logging.error(f"Row {index}: {error_msg}")
         return {
-            'status_code': None,
+            'status_code': getattr(e.response, 'status_code', None) if hasattr(e, 'response') and e.response else None,
             'success': False,
-            'response': None,
+            'response': response_content,
             'error': error_msg
         }
     except Exception as e:
@@ -140,6 +145,10 @@ def extract_specific_fields(json_obj):
         if 'result' in json_obj and isinstance(json_obj['result'], dict):
             if 'status' in json_obj['result']:
                 extracted['result_status'] = json_obj['result']['status']
+    
+    elif isinstance(json_obj, str):
+        # If the response is a string (error message), include it
+        extracted['raw_response'] = json_obj
     
     return extracted
 
@@ -177,19 +186,6 @@ def save_results_to_csv(df, results, output_file='tin_verification_results.csv')
         # Save to CSV
         result_df.to_csv(output_file, index=False)
         logging.info(f"Results saved to {output_file}")
-        
-        # Also save a summary of the response structure
-        if all_response_columns:
-            response_structure = {
-                'extracted_columns': sorted(list(all_response_columns)),
-                'total_columns': len(all_response_columns),
-                'sample_extracted_response': extracted_responses[0] if extracted_responses else {},
-                'note': 'Only extracting: id, submitted, and result.status from API responses'
-            }
-            with open('response_structure.json', 'w') as f:
-                json.dump(response_structure, f, indent=2)
-            logging.info("Response structure saved to response_structure.json")
-        
         return result_df
         
     except Exception as e:
@@ -201,7 +197,6 @@ def save_raw_responses(results, output_file='raw_api_responses.json'):
     try:
         with open(output_file, 'w') as f:
             json.dump(results, f, indent=2, default=str)
-        logging.info(f"Raw responses saved to {output_file}")
     except Exception as e:
         logging.error(f"Error saving raw responses: {e}")
 
@@ -242,9 +237,7 @@ def main():
         print(f"Successful requests: {successful_requests}")
         print(f"Failed requests: {failed_requests}")
         print(f"Results saved to: tin_verification_results.csv")
-        print(f"Response structure saved to: response_structure.json")
         print(f"Raw responses saved to: raw_api_responses.json")
-        print(f"Log file: tin_verification.log")
         
     except Exception as e:
         logging.error(f"Fatal error in main: {e}")

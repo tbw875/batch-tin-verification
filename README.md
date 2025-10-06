@@ -76,16 +76,16 @@ The script extracts only the essential fields from the API response:
 Example: If the API returns:
 ```json
 {
-  "id": "wFc9rmU1d",
+  "id": "ABC123",
   "status": "completed",
   "completed": true,
   "submitted": "2025-10-06T20:21:08.438Z",
   "updatedAt": "2025-10-06T20:21:08.438Z",
   "request": {
-    "phone": "2067195992",
+    "phone": "2065551234",
     "tinType": "ITIN",
-    "lastName": "Walsh",
-    "firstName": "Thomas"
+    "lastName": "Smith",
+    "firstName": "John"
   },
   "result": {
     "status": "MATCH",
@@ -103,26 +103,12 @@ The CSV will have columns:
 
 ## Error Handling
 
-The script handles various error scenarios:
-- Network timeouts
-- API errors (4xx, 5xx status codes)
-- Missing or invalid input data
-- File I/O errors
+The script captures the exact API responses for all scenarios:
+- **Successful requests (200)**: Extracts `id`, `submitted`, and `result.status`
+- **API errors (4xx, 5xx)**: Captures the exact error response from the API
+- **Network timeouts**: Logs timeout information
+- **Request exceptions**: Captures any response content if available
+- **Missing or invalid input data**: Validates input before processing
+- **File I/O errors**: Handles file operations gracefully
 
-All errors are logged and the script continues processing remaining rows.
-
-## Logging
-
-Comprehensive logging is provided at multiple levels:
-- INFO: Normal operations and progress updates
-- WARNING: Non-critical issues (e.g., missing optional fields)
-- ERROR: Failed requests and critical errors
-
-Logs are written to both console and `tin_verification.log` file.
-
-## Notes
-
-- The script uses the Vouched TIN Verification API which may be asynchronous
-- If you provide a `CALLBACK_URL`, the API will send results to that endpoint
-- Without a callback URL, you'll only receive the initial request confirmation
-- Consider implementing a callback handler for complete async processing
+All responses (successful and error) are logged with their exact content, and the script continues processing remaining rows.
