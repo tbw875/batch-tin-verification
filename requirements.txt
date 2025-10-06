@@ -1,0 +1,8 @@
+# Python dependencies for batch-tin-verification project
+
+# Environment variable management
+python-dotenv==1.0.0
+
+# Add other dependencies as needed
+# requests==2.31.0
+# pandas==2.1.0
