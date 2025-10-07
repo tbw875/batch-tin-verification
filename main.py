@@ -7,6 +7,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 import requests as r
 import pandas as pd
+from tqdm import tqdm
 
 # Load environment variables
 load_dotenv()
@@ -219,7 +220,7 @@ def main():
         
         # Process each row
         logging.info(f"Starting TIN verification for {len(df)} rows")
-        for index, row in df.iterrows():
+        for index, row in tqdm(df.iterrows(), total=len(df), desc="Processing TIN verifications", unit="requests"):
             result = run_tin_verification(row, index)
             results.append(result)
         
